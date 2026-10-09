@@ -5,28 +5,180 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Open World</title>
 <style>
+:root{color-scheme:dark;--ink:#10241d;--panel:#14271f;--panel-raised:#1c3328;--line:#365243;--muted:#a9b9a6;--paper:#f0ead7;--gold:#edc86f;--mint:#80dbb1;--red:#ef967d}
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#08141d}
-body{font-family:Georgia,"Times New Roman",serif}
+body{font-family:Georgia,"Times New Roman",serif;color:var(--paper)}
+button{font:inherit}
+[hidden]{display:none!important}
 .screen{position:relative;width:100vw;height:100vh;overflow:hidden;background:#08141d}
-.hero-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center center;display:block}
+.artwork{position:absolute;top:50%;left:50%;width:max(100vw,150vh);height:max(100vh,66.6667vw);transform:translate(-50%,-50%)}
+.hero-image{display:block;width:100%;height:100%}
 .hit{position:absolute;z-index:10;border:0;background:transparent;cursor:pointer}
 .hit:hover{background:rgba(80,240,220,.08);box-shadow:0 0 28px rgba(80,240,220,.22)}
-.play{left:5.5%;top:45.8%;width:min(430px,33vw);height:10%}
-.settings{left:5.5%;top:59%;width:min(430px,33vw);height:10%}
+.play{left:5.5%;top:45.8%;width:30%;height:11%}
+.settings-hit{left:5.5%;top:58.5%;width:29%;height:11%}
 .modal{display:none;position:absolute;inset:0;z-index:30;align-items:center;justify-content:center;background:rgba(0,0,0,.78);backdrop-filter:blur(8px)}
-.panel{width:min(520px,86vw);padding:38px;border:1px solid #7897a0;border-radius:14px;background:linear-gradient(145deg,#0b1d29,#08131d);box-shadow:0 25px 80px rgba(0,0,0,.82);color:#fff}
+.panel{width:min(520px,86vw);padding:38px;border:1px solid #7897a0;border-radius:10px;background:linear-gradient(145deg,#0b1d29,#08131d);box-shadow:0 25px 80px rgba(0,0,0,.82);color:#fff}
 .panel h2{margin:0 0 12px;color:#f5cc74;font-size:36px}
 .panel p{margin:0 0 24px;font:400 16px/1.7 Arial,sans-serif;color:#cbd7dc}
-.close{padding:11px 25px;border:1px solid #73929b;border-radius:7px;background:#14323c;color:white;cursor:pointer;font-size:16px}
-@media(max-width:700px){.play{left:5%;top:42%;width:60vw}.settings{left:5%;top:56%;width:60vw}}
+.close{padding:11px 25px;border:1px solid #73929b;border-radius:5px;background:#14323c;color:white;cursor:pointer;font-size:16px}
+.purchase-panel{width:min(440px,88vw);padding:30px;border-color:#657e53;background:linear-gradient(145deg,#173023,#0d1c15)}
+.purchase-panel h2{font-size:28px;color:var(--gold)}
+.purchase-panel p{font:400 14px/1.6 Arial,sans-serif;color:#d0dbca}
+.purchase-actions{display:flex;justify-content:flex-end;gap:9px}
+.purchase-actions .action-button{min-width:96px}
+
+.game{position:absolute;inset:0;display:grid;grid-template-rows:66px minmax(0,1fr);background:#101f19;font-family:Arial,Helvetica,sans-serif}
+.topbar{z-index:2;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:0 25px;border-bottom:1px solid #30473a;background:#102019}
+.brand{display:flex;align-items:center;gap:13px;min-width:0}
+.back-button{width:34px;height:34px;border:1px solid var(--line);border-radius:5px;background:#1c3026;color:var(--paper);font-size:18px;cursor:pointer}
+.brand-mark{display:grid;place-items:center;width:33px;height:33px;border:1px solid #82946b;border-radius:50%;color:var(--gold);font-size:19px}
+.brand-name{font:700 17px Georgia,serif;letter-spacing:0}
+.brand-place{margin-top:3px;color:var(--muted);font-size:11px;letter-spacing:0}
+.top-status{display:flex;align-items:center;gap:20px}
+.season-label{color:var(--muted);font-size:12px}
+.wallet{display:flex;align-items:center;gap:9px;padding:9px 13px;border:1px solid #526b43;border-radius:5px;background:#1d3020;color:var(--gold);font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+.wallet small{color:#c1c9a8;font-size:10px;font-weight:400}
+.workspace{display:grid;grid-template-columns:minmax(0,1fr) 350px;min-height:0}
+.landscape{position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;background:#527944}
+.land-field{position:absolute;inset:0;overflow:hidden;background-color:#64894d;background-image:repeating-linear-gradient(24deg,transparent 0 36px,#ffffff0b 37px 39px),repeating-linear-gradient(112deg,transparent 0 52px,#1e4d2b12 53px 56px),linear-gradient(145deg,#759653,#547b43 55%,#688b4a)}
+.land-field::before{position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0 79px,#183c2b20 80px 81px);content:"";pointer-events:none}
+.land-world{position:absolute;top:-30%;left:-30%;width:160%;height:160%;transform:translate3d(0,0,0) scale(.75);transform-origin:center;will-change:transform}
+.land-field.panning,.land-field.panning .land-world{cursor:grabbing}
+.world-controls{position:absolute;top:95px;right:15px;z-index:4;display:flex;gap:5px}
+.world-control{display:grid;place-items:center;width:36px;height:36px;border:1px solid #526b52;border-radius:4px;background:#f0ead7;color:#20392a;font:700 19px Arial,sans-serif;cursor:pointer;box-shadow:0 1px 5px #0004}
+.world-control:hover{background:#fff8e9}
+.world-control:focus-visible{outline:3px solid #f3ce68;outline-offset:2px}
+.waterscape{position:absolute;inset:0;z-index:0;width:100%;height:100%;pointer-events:none}
+.water-features{position:absolute;inset:0;z-index:2;width:100%;height:100%;pointer-events:visiblePainted}
+.water-features path{pointer-events:visiblePainted}
+.riverbank{fill:none;stroke:#b8c88a;stroke-width:78;stroke-linecap:round;stroke-linejoin:round;opacity:.78}
+.river{fill:none;stroke:#55aaa5;stroke-width:70;stroke-linecap:round;stroke-linejoin:round}
+.river-glint{fill:none;stroke:#a3ded0;stroke-width:3;stroke-linecap:round;stroke-dasharray:34 58;opacity:.72}
+.ocean-bank{fill:#8ab99c;opacity:.82}
+.ocean{fill:#317f88}
+.ocean-glint{fill:none;stroke:#91d4c9;stroke-width:4;stroke-linecap:round;stroke-dasharray:26 46;opacity:.62}
+.lakebank{fill:#b8c88a;opacity:.8}
+.lake{fill:#55aaa5}
+.lake-glint{fill:none;stroke:#a3ded0;stroke-width:3;stroke-linecap:round;opacity:.62}
+.plot-grid{position:absolute;inset:0;z-index:1;display:grid;grid-template-columns:.55fr .65fr .75fr .85fr .95fr 1.05fr 1.2fr 1.4fr 1.65fr 2fr;grid-template-rows:.7fr .75fr .8fr .9fr 1fr 1.15fr 1.3fr 1.6fr}
+.land-plot{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;overflow:hidden;padding:4px;border:1px solid #d8e8b4;border-radius:0;background:rgba(37,82,43,.28);color:#f5f2d9;text-align:center;text-shadow:0 1px 3px #18321e;cursor:pointer;box-shadow:inset 0 0 0 1px #294b3155;transition:background .16s,border-color .16s,box-shadow .16s}
+.land-plot:hover{background:rgba(160,190,92,.32);border-color:#fff3bd}
+.land-plot[aria-pressed="true"]{border-style:solid;border-color:#f3ce68;background:rgba(157,132,51,.4);box-shadow:inset 0 0 0 2px #f3ce6840,0 0 0 2px #152e2390}
+.land-plot:focus-visible{outline:3px solid #fff4b7;outline-offset:3px}
+.land-plot[data-size="25"]{border-width:2px}
+.land-plot[data-occupied="true"]{border-style:solid;border-color:#b7d797;background:rgba(30,66,41,.82);cursor:default}
+.land-plot[data-owned="true"]:not([data-terrain="ocean"]){border-style:solid;border-color:#d4df8d;background:rgba(62,90,45,.78)}
+.land-plot[data-terrain="ocean"]{border-color:#a4d8d8;background:rgba(27,105,128,.78);color:#efffff;text-shadow:0 1px 3px #103746}
+.land-plot[data-terrain="ocean"]:hover{background:rgba(38,139,157,.86);border-color:#d8ffff}
+.land-plot[data-terrain="ocean"][aria-pressed="true"]{border-color:#f3ce68;background:rgba(71,132,130,.9)}
+.land-plot[data-terrain="ocean"][data-occupied="true"]{border-color:#95d7dc;background:rgba(20,77,101,.94)}
+.land-plot[data-terrain="ocean"][data-owned="true"]{border-style:solid;border-color:#e1d582;background:rgba(28,91,105,.9)}
+.land-plot[data-terrain="ocean"]::after{position:absolute;top:3px;right:4px;color:#c7f5ed;font-size:7px;font-weight:700;letter-spacing:.5px;content:"SEA"}
+.land-plot-number{font-size:9px;font-weight:700;letter-spacing:1px}
+.land-plot strong{font:700 14px Georgia,serif}
+.land-plot small{font-size:10px}
+.landscape-head,.landscape-foot{position:relative;z-index:1;pointer-events:none}
+.landscape-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:25px 27px 0}
+.eyebrow{margin:0 0 7px;color:#e7cf8c;font-size:10px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase}
+.landscape-head h1{margin:0;font:400 clamp(23px,3vw,37px)/1 Georgia,serif;color:#fff4d7}
+.district-tag{padding:7px 10px;border:1px solid rgba(236,226,194,.4);border-radius:3px;background:rgba(14,32,22,.5);color:#f1e7c9;font-size:10px;white-space:nowrap}
+.landscape-head h1{padding:5px 9px;border-radius:3px;background:rgba(15,33,24,.78);font-size:clamp(23px,3vw,34px);text-shadow:0 2px 6px #0008}
+.district-tag{border-color:#ffffff70;background:rgba(15,33,24,.78)}
+.map-hint{position:absolute;z-index:2;top:96px;left:27px;max-width:min(330px,calc(100% - 54px));padding:9px 12px;border:1px solid #ffffff88;border-radius:4px;background:rgba(15,33,24,.82);color:#f1ead7;font-size:11px;pointer-events:none}
+.landscape-foot{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:auto;padding:12px 27px;color:#f4ecd8;font-size:11px;text-shadow:0 1px 6px #18231c;background:linear-gradient(0deg,rgba(15,33,24,.8),transparent)}
+.sawmill-art{display:block;width:31px;height:31px;object-fit:contain}
+.live-dot{display:inline-block;width:7px;height:7px;margin-right:7px;border-radius:50%;background:#91e2a2;box-shadow:0 0 8px #91e2a2}
+
+.side-panel{display:flex;min-width:0;min-height:0;flex-direction:column;border-left:1px solid #30473a;background:var(--panel)}
+.panel-heading{padding:23px 21px 17px;border-bottom:1px solid var(--line)}
+.panel-heading .eyebrow{margin-bottom:6px;color:var(--mint)}
+.panel-heading h2{margin:0;font:400 25px Georgia,serif}
+.tabs{display:grid;grid-template-columns:1fr 1fr;padding:0 20px;border-bottom:1px solid var(--line)}
+.tab{position:relative;padding:15px 8px;border:0;background:transparent;color:var(--muted);font-size:12px;font-weight:700;cursor:pointer}
+.tab[aria-selected="true"]{color:var(--gold)}
+.tab[aria-selected="true"]::after{position:absolute;right:0;bottom:-1px;left:0;height:2px;background:var(--gold);content:""}
+.panel-content{min-height:0;overflow-y:auto;padding:16px 17px 23px;scrollbar-color:#50694e transparent;scrollbar-width:thin}
+.section-label{display:flex;align-items:center;justify-content:space-between;margin:0 2px 10px;color:#d7dfce;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+.section-label small{color:var(--muted);font-size:10px;font-weight:400;letter-spacing:0;text-transform:none}
+.shop-list,.market-list{display:grid;gap:9px}
+.shop-item,.market-item{padding:12px;border:1px solid #334c3d;border-radius:5px;background:#192e24}
+.item-head{display:flex;align-items:center;gap:10px}
+.item-icon{display:grid;place-items:center;width:35px;height:35px;flex:none;border:1px solid #425e48;border-radius:4px;background:#233b2b;font-size:20px}
+.item-title{min-width:0;flex:1}
+.item-title strong{display:block;color:#f2ecd9;font-family:Georgia,serif;font-size:14px;font-weight:400}
+.item-title small{display:block;margin-top:4px;color:var(--muted);font-size:10px;line-height:1.35}
+.price{flex:none;color:var(--gold);font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+.item-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:11px;padding-top:9px;border-top:1px solid #304638;color:#b7c5b3;font-size:10px}
+.action-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:0 10px;border:1px solid #67864f;border-radius:4px;background:#314d31;color:#f7f0db;font-size:11px;font-weight:700;cursor:pointer}
+.action-button:hover:not(:disabled){background:#46673d}
+.action-button:disabled{border-color:#3b4b40;background:#28392e;color:#718073;cursor:not-allowed}
+.action-button.sell{border-color:#3c8970;background:#1e5442}
+.action-button.sell:hover:not(:disabled){background:#287359}
+.resource-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #2d4336}
+.resource-row:last-child{border-bottom:0}
+.resource-symbol{width:28px;text-align:center;font-size:19px}
+.resource-copy{min-width:0;flex:1}
+.resource-copy strong{display:block;font-size:12px;font-weight:600}
+.resource-copy small{display:block;margin-top:3px;color:var(--muted);font-size:10px}
+.resource-qty{min-width:28px;color:var(--gold);font-size:11px;text-align:right;font-variant-numeric:tabular-nums}
+.market-group{margin-bottom:18px}
+.market-group:last-child{margin-bottom:0}
+.market-item{padding:3px 11px}
+.market-item .resource-row{min-height:50px}
+.empty-note{padding:17px 11px;border:1px dashed #405a48;border-radius:4px;color:#adbaa9;font-size:11px;line-height:1.5}
+.toast{position:absolute;z-index:5;right:370px;bottom:20px;max-width:min(360px,70vw);padding:11px 15px;border:1px solid #72966c;border-radius:4px;background:#1a3525;color:#f1eddc;font-size:12px;box-shadow:0 10px 30px #0006;opacity:0;pointer-events:none;transform:translateY(8px);transition:opacity .18s,transform .18s}
+.toast.show{opacity:1;transform:translateY(0)}
+
+@media(max-width:760px){
+  .game{grid-template-rows:58px minmax(0,1fr)}
+  .topbar{padding:0 12px}
+  .top-status{gap:8px}
+  .season-label{display:none}
+  .wallet{gap:6px;padding:8px;font-size:15px}
+  .wallet small{font-size:9px}
+  .workspace{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(245px,43vh) minmax(0,1fr)}
+  .landscape-head{padding:17px 15px 0}
+  .landscape-head h1{font-size:25px}
+  .map-hint{top:75px;left:12px;max-width:calc(100% - 62px);font-size:10px}
+  .world-controls{top:75px;right:9px;gap:4px}
+  .world-control{width:32px;height:32px;font-size:17px}
+  .plot-grid{grid-template-columns:repeat(10,minmax(42px,1fr));grid-template-rows:repeat(8,minmax(72px,1fr));overflow:auto;overscroll-behavior:contain;scrollbar-color:#9cb77b66 transparent;scrollbar-width:thin}
+  .land-plot{gap:2px;padding:4px 2px}
+  .land-plot-number,.land-plot small{display:none}
+  .land-plot strong{font-size:10px}
+  .landscape-foot{padding:10px 14px;font-size:9px}
+  .side-panel{border-top:1px solid #30473a;border-left:0}
+  .panel-heading{display:none}
+  .tabs{padding:0 10px}
+  .tab{padding:12px 8px}
+  .panel-content{padding:11px 12px 18px}
+  .shop-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+  .shop-item{padding:9px}
+  .item-head{gap:7px}
+  .item-icon{width:29px;height:29px;font-size:17px}
+  .item-title strong{font-size:12px}
+  .item-title small{font-size:9px}
+  .item-meta{font-size:9px}
+  .action-button{min-height:29px;padding:0 7px;font-size:10px}
+  .toast{right:12px;bottom:calc(43vh + 12px)}
+}
+@media(max-width:390px){
+  .brand-name{font-size:14px}
+  .brand-mark{width:29px;height:29px}
+  .district-tag{padding:6px;font-size:9px}
+  .shop-list{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
-<div class="screen">
-  <img class="hero-image" src="assets/home-screen.webp?v=2" alt="Open World cinematic home screen">
-  <button class="hit play" aria-label="Play" onclick="startGame()"></button>
-  <button class="hit settings" aria-label="Settings" onclick="openSettings()"></button>
+<main class="screen" id="homeScreen">
+  <div class="artwork">
+    <img class="hero-image" src="assets/home-screen.webp?v=2" alt="Open World cinematic home screen">
+    <button class="hit play" aria-label="Play" onclick="startGame()"></button>
+    <button class="hit settings-hit" aria-label="Settings" onclick="openSettings()"></button>
+  </div>
   <div class="modal" id="settings">
     <div class="panel">
       <h2>Settings</h2>
@@ -34,11 +186,310 @@ body{font-family:Georgia,"Times New Roman",serif}
       <button class="close" onclick="closeSettings()">CLOSE</button>
     </div>
   </div>
-</div>
+</main>
+
+<main class="game" id="gameScreen" hidden>
+  <header class="topbar">
+    <div class="brand">
+      <button class="back-button" aria-label="Return to title screen" title="Return to title screen" onclick="returnHome()">&#8592;</button>
+      <span class="brand-mark" aria-hidden="true">&#10022;</span>
+      <div><div class="brand-name">Open World</div><div class="brand-place">FRONTIER INDUSTRIES</div></div>
+    </div>
+    <div class="top-status">
+      <span class="season-label">CEDAR VALLEY &nbsp;|&nbsp; DAY 01</span>
+      <div class="wallet"><small>YOUR FUNDS</small><span id="money">$5,000</span></div>
+    </div>
+  </header>
+  <div class="workspace">
+    <section class="landscape" aria-label="Your business district">
+      <div class="land-field" id="plotField">
+        <div class="land-world" id="landWorld">
+        <svg class="waterscape" viewBox="0 0 1200 700" preserveAspectRatio="none" aria-hidden="true">
+          <path class="ocean-bank" d="M900-40 C790 95 990 180 888 315 C784 454 922 565 817 745 H1240 V-40Z"/>
+          <path class="ocean" d="M938-40 C848 91 1040 181 940 310 C843 448 974 561 875 745 H1240 V-40Z"/>
+          <path class="ocean-glint" d="M921-20 C845 94 1018 177 918 303 C826 437 956 550 854 720"/>
+          <path class="ocean-bank" d="M-40 605 C155 514 310 697 501 620 S846 536 1010 624 S1166 681 1240 610 V745 H-40Z"/>
+          <path class="ocean" d="M-40 643 C155 552 310 735 501 658 S846 574 1010 662 S1166 719 1240 648 V745 H-40Z"/>
+        </svg>
+        <div class="plot-grid" id="plotGrid" role="group" aria-label="Buyable land plots"></div>
+        <svg class="water-features" viewBox="0 0 1200 700" preserveAspectRatio="none" aria-hidden="true">
+          <path class="riverbank" d="M-80 185 C110 70 250 260 425 174 S590 88 700 140"/>
+          <path class="river" d="M-80 185 C110 70 250 260 425 174 S590 88 700 140"/>
+          <path class="river-glint" d="M-80 185 C110 70 250 260 425 174 S590 88 700 140"/>
+          <path class="riverbank" d="M-80 508 C90 492 180 520 300 508 S420 492 470 508"/>
+          <path class="river" d="M-80 508 C90 492 180 520 300 508 S420 492 470 508"/>
+          <path class="river-glint" d="M-80 508 C90 492 180 520 300 508 S420 492 470 508"/>
+          <path class="lakebank" d="M75 335 C122 300 196 310 222 355 C254 411 218 470 155 476 C92 482 51 431 57 380 C60 360 65 346 75 335Z"/>
+          <path class="lake" d="M88 350 C129 322 185 326 205 362 C229 407 201 451 153 458 C106 464 72 425 73 386 C74 370 78 359 88 350Z"/>
+          <path class="lake-glint" d="M104 367 C133 348 169 351 187 372 M91 397 C94 423 111 439 132 445"/>
+          <path class="lakebank" d="M355 320 C395 290 462 298 484 338 C510 386 480 435 425 445 C375 455 336 421 338 374 C339 348 344 331 355 320Z"/>
+          <path class="lake" d="M367 335 C405 309 455 318 473 349 C493 386 468 421 426 431 C386 439 351 412 351 375 C351 356 357 344 367 335Z"/>
+          <path class="lake-glint" d="M382 349 C408 332 446 336 462 356 M363 382 C366 404 385 421 405 427"/>
+        </svg>
+        </div>
+      </div>
+      <div class="landscape-head">
+        <div><p class="eyebrow">A new beginning</p><h1>Build anywhere</h1></div>
+        <span class="district-tag">GREEN VALLEY</span>
+      </div>
+      <div class="map-hint" id="mapHint">Select an open plot, then buy a workshop to build there.</div>
+      <div class="world-controls" role="group" aria-label="Map zoom controls">
+        <button class="world-control" type="button" aria-label="Zoom in" title="Zoom in" onclick="zoomWorld(1)">&#43;</button>
+        <button class="world-control" type="button" aria-label="Zoom out" title="Zoom out" onclick="zoomWorld(-1)">&#8722;</button>
+        <button class="world-control" type="button" aria-label="Reset map view" title="Reset map view" onclick="resetWorldView()">&#8634;</button>
+      </div>
+      <div class="landscape-foot"><span><i class="live-dot"></i><span id="production-status">District ready for business</span></span><span>BUSINESSES &nbsp;<b id="lot-count">0 / 80</b></span></div>
+    </section>
+    <aside class="side-panel" aria-label="Business management">
+      <div class="panel-heading"><p class="eyebrow">Your enterprise</p><h2 id="panel-title">Build your district</h2></div>
+      <div class="tabs" role="tablist" aria-label="Business actions">
+        <button class="tab" id="buildTab" role="tab" aria-selected="true" onclick="setTab('build')">BUILD</button>
+        <button class="tab" id="marketTab" role="tab" aria-selected="false" onclick="setTab('market')">MARKET</button>
+      </div>
+      <div class="panel-content" id="panelContent"></div>
+    </aside>
+  </div>
+  <div class="modal" id="plotPurchaseDialog" aria-hidden="true">
+    <section class="panel purchase-panel" role="dialog" aria-modal="true" aria-labelledby="plotPurchaseTitle" aria-describedby="plotPurchaseCopy">
+      <h2 id="plotPurchaseTitle">Buy this plot?</h2>
+      <p id="plotPurchaseCopy"></p>
+      <div class="purchase-actions">
+        <button class="action-button sell" id="cancelPlotPurchase" type="button">No</button>
+        <button class="action-button" id="confirmPlotPurchase" type="button">Yes, buy</button>
+      </div>
+    </section>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</main>
+
 <script>
-function startGame(){alert("The Open World game will start here!")}
+const SAVE_KEY = "open-world-business-save";
+const ORIGINAL_PLOT_SIZES = [
+  [1,5,10,5],
+  [10,25,1,2],
+  [2,5,5,10],
+  [10,15,1,5],
+  [5,10,20,25]
+].flat();
+const EXTRA_PLOT_SIZES = [1,2,5,10,15,25];
+const PLOTS = Array.from({length:80},(_,index)=>{
+  const row=Math.floor(index/10)+1,column=index%10+1;
+  const ocean=column>=8||row>=8||(column>=6&&row>=4&&row<=7);
+  return {hectares:ORIGINAL_PLOT_SIZES[index]||EXTRA_PLOT_SIZES[(row*3+column*5)%EXTRA_PLOT_SIZES.length],row,column,terrain:ocean?"ocean":"land"};
+});
+const LOT_LIMIT = PLOTS.length;
+const LAND_PRICE_PER_HECTARE = 250;
+const CATALOG = {
+  sawmill:{name:"Sawmill",icon:'<img class="sawmill-art" src="assets/sawmill.svg" alt="">',cost:1800,input:"logs",inputQty:2,output:"planks",outputQty:3,seconds:8,description:"Turns logs into sellable planks."},
+  bakery:{name:"Bakery",icon:"&#127838;",cost:1200,input:"grain",inputQty:2,output:"bread",outputQty:4,seconds:7,description:"Bakes grain into fresh bread."},
+  smelter:{name:"Smelter",icon:"&#9874;",cost:2400,input:"ore",inputQty:2,output:"metal",outputQty:3,seconds:10,description:"Smelts ore into useful metal."}
+};
+const GOODS = {
+  logs:{name:"Logs",icon:"&#129717;",price:75,type:"resource"},
+  grain:{name:"Grain",icon:"&#127806;",price:45,type:"resource"},
+  ore:{name:"Iron ore",icon:"&#129704;",price:120,type:"resource"},
+  planks:{name:"Planks",icon:"&#129717;",price:190,type:"product"},
+  bread:{name:"Bread",icon:"&#127838;",price:85,type:"product"},
+  metal:{name:"Metal",icon:"&#9874;",price:210,type:"product"}
+};
+const initialState = {money:5000,inventory:{logs:0,grain:0,ore:0,planks:0,bread:0,metal:0},machines:[],ownedPlots:[]};
+function loadState(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(SAVE_KEY));
+    if(!saved||!saved.inventory||!Array.isArray(saved.machines))return JSON.parse(JSON.stringify(initialState));
+    const machines=saved.machines.filter(machine=>CATALOG[machine.kind]).slice(0,LOT_LIMIT).map((machine,index)=>({...machine,plotIndex:Number.isInteger(machine.plotIndex)&&machine.plotIndex>=0&&machine.plotIndex<LOT_LIMIT?machine.plotIndex:index,hectares:PLOTS[Number.isInteger(machine.plotIndex)&&machine.plotIndex>=0&&machine.plotIndex<LOT_LIMIT?machine.plotIndex:index].hectares,nextCycle:Date.now()+CATALOG[machine.kind].seconds*1000}));
+    const savedPlots=Array.isArray(saved.ownedPlots)?saved.ownedPlots.filter(index=>Number.isInteger(index)&&index>=0&&index<LOT_LIMIT):[];
+    return {money:Number.isFinite(saved.money)?saved.money:5000,inventory:{...initialState.inventory,...saved.inventory},machines,ownedPlots:Array.from(new Set([...savedPlots,...machines.map(machine=>machine.plotIndex)]))};
+  }catch{return JSON.parse(JSON.stringify(initialState))}
+}
+let state=loadState();
+let activeTab="build";
+let selectedPlotIndex=-1;
+let pendingPlotIndex=null;
+let toastTimer;
+const MIN_WORLD_ZOOM=.625;
+const MAX_WORLD_ZOOM=1.25;
+const WORLD_ZOOM_STEP=.1;
+let worldZoom=.75;
+let worldPanX=0;
+let worldPanY=0;
+let worldDragging=false;
+let worldPointerStart=null;
+let worldPanStart=null;
+function findOpenPlotIndex(){return PLOTS.findIndex((_,index)=>!state.machines.some(machine=>machine.plotIndex===index))}
+selectedPlotIndex=findOpenPlotIndex();
+function saveState(){localStorage.setItem(SAVE_KEY,JSON.stringify(state))}
+function cash(value){return "$"+value.toLocaleString("en-US")}
+function startGame(){document.getElementById("homeScreen").hidden=true;document.getElementById("gameScreen").hidden=false;renderAll()}
+function returnHome(){document.getElementById("gameScreen").hidden=true;document.getElementById("homeScreen").hidden=false}
 function openSettings(){document.getElementById("settings").style.display="flex"}
 function closeSettings(){document.getElementById("settings").style.display="none"}
+function notify(message){const toast=document.getElementById("toast");toast.textContent=message;toast.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove("show"),2400)}
+function renderAll(){renderHud();renderPlots();renderPanel()}
+function closePlotPurchaseDialog(){
+  pendingPlotIndex=null;
+  const dialog=document.getElementById("plotPurchaseDialog");
+  dialog.style.display="none";dialog.setAttribute("aria-hidden","true");
+}
+function openPlotPurchaseDialog(plotIndex){
+  const plot=PLOTS[plotIndex];
+  if(!plot||state.ownedPlots.includes(plotIndex))return;
+  pendingPlotIndex=plotIndex;
+  const cost=plot.hectares*LAND_PRICE_PER_HECTARE;
+  const terrain=plot.terrain==="ocean"?"ocean":"land";
+  document.getElementById("plotPurchaseCopy").textContent="Buy Lot "+String(plotIndex+1).padStart(2,"0")+", a "+plot.hectares+" ha "+terrain+" plot, for "+cash(cost)+"?"+(state.money<cost?" You don't have enough funds yet":"");
+  const confirmButton=document.getElementById("confirmPlotPurchase");
+  confirmButton.disabled=state.money<cost;
+  const dialog=document.getElementById("plotPurchaseDialog");
+  dialog.style.display="flex";dialog.setAttribute("aria-hidden","false");
+  document.getElementById(confirmButton.disabled?"cancelPlotPurchase":"confirmPlotPurchase").focus();
+}
+function confirmPlotPurchase(){
+  const plotIndex=pendingPlotIndex,plot=PLOTS[plotIndex];
+  if(!plot||state.ownedPlots.includes(plotIndex)){closePlotPurchaseDialog();return}
+  const cost=plot.hectares*LAND_PRICE_PER_HECTARE;
+  if(state.money<cost){document.getElementById("confirmPlotPurchase").disabled=true;return}
+  state.money-=cost;state.ownedPlots.push(plotIndex);selectedPlotIndex=plotIndex;
+  closePlotPurchaseDialog();saveState();renderAll();notify("Lot "+String(plotIndex+1).padStart(2,"0")+" is now owned.");
+}
+function constrainWorldPan(){
+  const bounds=document.getElementById("plotField").getBoundingClientRect();
+  const maxX=Math.max(0,(1.6*worldZoom-1)*bounds.width/2);
+  const maxY=Math.max(0,(1.6*worldZoom-1)*bounds.height/2);
+  worldPanX=Math.max(-maxX,Math.min(maxX,worldPanX));
+  worldPanY=Math.max(-maxY,Math.min(maxY,worldPanY));
+}
+function updateWorldTransform(){document.getElementById("landWorld").style.transform="translate3d("+worldPanX+"px,"+worldPanY+"px,0) scale("+worldZoom+")"}
+function zoomWorld(direction){worldZoom=Math.max(MIN_WORLD_ZOOM,Math.min(MAX_WORLD_ZOOM,worldZoom+direction*WORLD_ZOOM_STEP));constrainWorldPan();updateWorldTransform()}
+function resetWorldView(){worldZoom=MIN_WORLD_ZOOM;worldPanX=0;worldPanY=0;updateWorldTransform()}
+function renderPlots(){
+  document.getElementById("plotGrid").innerHTML=PLOTS.map((plot,index)=>{
+    const machine=state.machines.find(item=>item.plotIndex===index);
+    const style="grid-row:"+plot.row+";grid-column:"+plot.column;
+    const terrainLabel=plot.terrain==="ocean"?"ocean":"land";
+    if(machine){
+      const spec=CATALOG[machine.kind],waiting=state.inventory[spec.input]<spec.inputQty;
+      return '<article class="land-plot" data-size="'+plot.hectares+'" data-terrain="'+plot.terrain+'" data-occupied="true" aria-label="'+spec.name+' on '+terrainLabel+' lot '+(index+1)+'" style="'+style+'"><span class="land-plot-number">LOT '+String(index+1).padStart(2,"0")+'</span><strong>'+spec.name+'</strong><small>'+plot.hectares+' ha · '+(waiting?"NEEDS SUPPLIES":"PRODUCING")+'</small></article>';
+    }
+    const owned=state.ownedPlots.includes(index);
+    return '<button class="land-plot" type="button" data-size="'+plot.hectares+'" data-terrain="'+plot.terrain+'" data-owned="'+owned+'" data-plot-index="'+index+'" style="'+style+'" aria-pressed="'+(selectedPlotIndex===index)+'" aria-label="Select '+(owned?"owned":"available")+' '+plot.hectares+' hectare '+terrainLabel+' lot '+(index+1)+'"><span class="land-plot-number">LOT '+String(index+1).padStart(2,"0")+'</span><strong>'+plot.hectares+' ha</strong><small>'+(owned?"OWNED":cash(plot.hectares*LAND_PRICE_PER_HECTARE)+" · BUY")+'</small></button>';
+  }).join("");
+}
+function renderHud(){
+  document.getElementById("money").textContent=cash(state.money);
+  document.getElementById("lot-count").textContent=state.machines.length+" / "+LOT_LIMIT;
+  const running=state.machines.filter(machine=>state.inventory[CATALOG[machine.kind].input]>=CATALOG[machine.kind].inputQty).length;
+  document.getElementById("production-status").textContent=running?running+" production line"+(running===1?"":"s")+" running":"District ready for business";
+}
+document.getElementById("plotField").addEventListener("click",event=>{
+  const plotButton=event.target.closest("button[data-plot-index]");
+  if(!plotButton)return;
+  selectedPlotIndex=Number(plotButton.dataset.plotIndex);
+  renderPlots();
+  if(activeTab==="build")renderPanel();
+  if(!state.ownedPlots.includes(selectedPlotIndex))openPlotPurchaseDialog(selectedPlotIndex);
+});
+document.getElementById("cancelPlotPurchase").addEventListener("click",closePlotPurchaseDialog);
+document.getElementById("confirmPlotPurchase").addEventListener("click",confirmPlotPurchase);
+document.getElementById("plotPurchaseDialog").addEventListener("click",event=>{if(event.target===event.currentTarget)closePlotPurchaseDialog()});
+document.addEventListener("keydown",event=>{if(event.key==="Escape"&&pendingPlotIndex!==null)closePlotPurchaseDialog()});
+const plotField=document.getElementById("plotField");
+plotField.addEventListener("wheel",event=>{
+  if(event.target.closest(".plot-grid")&&document.getElementById("plotGrid").scrollHeight>document.getElementById("plotGrid").clientHeight)return;
+  event.preventDefault();zoomWorld(event.deltaY<0?1:-1);
+},{passive:false});
+plotField.addEventListener("pointerdown",event=>{
+  if(event.button!==0||event.target.closest(".land-plot,.water-features"))return;
+  worldDragging=true;worldPointerStart={x:event.clientX,y:event.clientY};worldPanStart={x:worldPanX,y:worldPanY};
+  plotField.classList.add("panning");plotField.setPointerCapture(event.pointerId);
+});
+plotField.addEventListener("pointermove",event=>{
+  if(!worldDragging)return;
+  worldPanX=worldPanStart.x+event.clientX-worldPointerStart.x;worldPanY=worldPanStart.y+event.clientY-worldPointerStart.y;
+  constrainWorldPan();updateWorldTransform();
+});
+function stopWorldPan(){worldDragging=false;plotField.classList.remove("panning")}
+plotField.addEventListener("pointerup",stopWorldPan);
+plotField.addEventListener("pointercancel",stopWorldPan);
+function setTab(tab){activeTab=tab;document.getElementById("buildTab").setAttribute("aria-selected",String(tab==="build"));document.getElementById("marketTab").setAttribute("aria-selected",String(tab==="market"));renderPanel()}
+function renderPanel(){
+  document.getElementById("panel-title").textContent=activeTab==="build"?"Build your district":"Trade at the market";
+  const content=document.getElementById("panelContent");
+  content.innerHTML=activeTab==="build"?buildPanelMarkup():marketPanelMarkup();
+}
+function buildPanelMarkup(){
+  const available=state.ownedPlots.filter(index=>!state.machines.some(machine=>machine.plotIndex===index)).length;
+  const selectedPlot=PLOTS[selectedPlotIndex];
+  const selectedPlotOwned=Boolean(selectedPlot&&state.ownedPlots.includes(selectedPlotIndex));
+  const machines=Object.entries(CATALOG).map(([kind,spec])=>{
+    const input=GOODS[spec.input],output=GOODS[spec.output];
+    const totalCost=spec.cost;
+    return '<article class="shop-item"><div class="item-head"><span class="item-icon">'+spec.icon+'</span><div class="item-title"><strong>'+spec.name+'</strong><small>'+spec.description+'</small></div><span class="price">'+cash(totalCost)+'</span></div><div class="item-meta"><span>'+input.icon+' '+spec.inputQty+' '+input.name+' &rarr; '+spec.outputQty+' '+output.name+'</span><button class="action-button" data-action="build" data-kind="'+kind+'" '+(!selectedPlotOwned||state.machines.some(machine=>machine.plotIndex===selectedPlotIndex)||state.money<totalCost?'disabled':'')+'>BUILD HERE</button></div></article>';
+  }).join("");
+  const selection=selectedPlot?"Lot "+String(selectedPlotIndex+1).padStart(2,"0")+" · "+selectedPlot.hectares+" ha · "+(selectedPlotOwned?"OWNED":"NOT OWNED"):"Select a lot";
+  const landPrompt=selectedPlot&&!selectedPlotOwned?'<p class="empty-note">Buy the selected lot before building here.</p>':"";
+  return '<p class="section-label">Workshop plans <small>'+selection+' · '+available+' owned &amp; empty</small></p>'+landPrompt+'<div class="shop-list">'+machines+'</div><p class="section-label" style="margin-top:19px">In storage</p><div class="market-item">'+inventoryRows(["logs","grain","ore","planks","bread","metal"],false)+'</div>';
+}
+function inventoryRows(keys,showPrice){
+  return keys.map(key=>{const good=GOODS[key];return '<div class="resource-row"><span class="resource-symbol">'+good.icon+'</span><span class="resource-copy"><strong>'+good.name+'</strong><small>'+(showPrice?(good.type==="resource"?"Buy ":"Sell ")+cash(good.price)+" each":"Stored inventory")+'</small></span><span class="resource-qty">'+state.inventory[key]+'</span></div>'}).join("");
+}
+function marketPanelMarkup(){
+  const resources=Object.keys(GOODS).filter(key=>GOODS[key].type==="resource");
+  const products=Object.keys(GOODS).filter(key=>GOODS[key].type==="product");
+  const buyRows=resources.map(key=>marketRow(key,"buy")).join("");
+  const sellRows=products.map(key=>marketRow(key,"sell")).join("");
+  return '<section class="market-group"><p class="section-label">Buy supplies <small>5 units per order</small></p><div class="market-item">'+buyRows+'</div></section><section class="market-group"><p class="section-label">Sell finished goods <small>Market rates</small></p><div class="market-item">'+sellRows+'</div></section>';
+}
+function marketRow(key,action){
+  const good=GOODS[key],quantity=state.inventory[key];
+  const canTrade=action==="buy"?state.money>=good.price*5:quantity>0;
+  const amount=action==="buy"?5:quantity;
+  return '<div class="resource-row"><span class="resource-symbol">'+good.icon+'</span><span class="resource-copy"><strong>'+good.name+'</strong><small>'+cash(good.price)+' / unit</small></span><span class="resource-qty">'+quantity+'</span><button class="action-button '+(action==="sell"?"sell":"")+'" data-action="'+action+'" data-good="'+key+'" '+(canTrade?"":"disabled")+'>'+(action==="buy"?"BUY 5":"SELL ALL")+'</button></div>';
+}
+function buildMachine(kind){
+  const spec=CATALOG[kind];
+  const plot=PLOTS[selectedPlotIndex];
+  const totalCost=spec?spec.cost:0;
+  if(!spec||!plot||!state.ownedPlots.includes(selectedPlotIndex)||state.machines.some(machine=>machine.plotIndex===selectedPlotIndex)||state.money<totalCost)return;
+  const lotNumber=selectedPlotIndex+1;
+  state.money-=totalCost;
+  state.machines.push({kind,plotIndex:selectedPlotIndex,hectares:plot.hectares,nextCycle:Date.now()+spec.seconds*1000});
+  selectedPlotIndex=findOpenPlotIndex();
+  saveState();renderAll();notify("Built "+spec.name+" on Lot "+String(lotNumber).padStart(2,"0")+".");
+}
+function buyGood(key){
+  const good=GOODS[key],amount=5,cost=good.price*amount;
+  if(!good||good.type!=="resource"||state.money<cost)return;
+  state.money-=cost;state.inventory[key]+=amount;saveState();renderAll();notify("Bought 5 "+good.name.toLowerCase()+" for "+cash(cost)+".");
+}
+function sellGood(key){
+  const good=GOODS[key],amount=state.inventory[key];
+  if(!good||good.type!=="product"||amount<1)return;
+  const earnings=amount*good.price;state.inventory[key]=0;state.money+=earnings;saveState();renderAll();notify("Sold "+amount+" "+good.name.toLowerCase()+" for "+cash(earnings)+".");
+}
+document.getElementById("panelContent").addEventListener("click",event=>{
+  const button=event.target.closest("button[data-action]");
+  if(!button||button.disabled)return;
+  if(button.dataset.action==="build")buildMachine(button.dataset.kind);
+  if(button.dataset.action==="buy")buyGood(button.dataset.good);
+  if(button.dataset.action==="sell")sellGood(button.dataset.good);
+});
+setInterval(()=>{
+  if(document.getElementById("gameScreen").hidden)return;
+  const now=Date.now();
+  let changed=false;
+  for(const machine of state.machines){
+    const spec=CATALOG[machine.kind];
+    if(now<machine.nextCycle)continue;
+    if(state.inventory[spec.input]<spec.inputQty){machine.nextCycle=now+1000;continue}
+    state.inventory[spec.input]-=spec.inputQty;
+    state.inventory[spec.output]+=spec.outputQty;
+    machine.nextCycle=now+spec.seconds*1000;
+    changed=true;
+  }
+  if(changed){saveState();renderHud();renderPlots();if(activeTab==="market")renderPanel()}
+},1000);
+renderAll();
 </script>
 </body>
 </html>
