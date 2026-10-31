@@ -3,11 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Open World — v2.25</title>
+<title>Open World — v2.26</title>
 <style>
 /* ==================================================================
-   OPEN WORLD v2.25 — THE LONG WALK: cross-city walks actually work.
-   The WALK-TO pill now measures the TYCOON'S distance (a panned
+   OPEN WORLD v2.26 — THE WHOLE WORLD: every city already stands in
+   the world before you get there. All 64 catalog cities are pre-
+   built at their real spots — true street footprints and building
+   heights (the real OSM data when this browser has it cached, the
+   deterministic local generator otherwise — never a network call),
+   dry-land gated like the full build and fog-free like the city
+   beacons, so a panned or zoomed-out view sees cities on the
+   horizon instead of empty markers. Walking into a city upgrades
+   that spot to the fully detailed city (plots, props, citizens);
+   leaving hands the horizon back to the skyline — the world never
+   empties behind you. (v2.25 THE LONG WALK: cross-city walks
+   actually work. The WALK-TO pill now measures the TYCOON'S distance (a panned
    bird's-eye view used to claim "0.9 KM" while the tycoon stood
    4.7 km away and the city ahead never streamed in — "no other city
    loads"); far walks leave downtown ALONG THE STREETS (street-hop
@@ -570,7 +580,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // ====================================================================
 // v2.0 — CORE: config, state, save, HUD engine, city catalog
 // ====================================================================
-const GAME_VERSION = 'v2.25';
+const GAME_VERSION = 'v2.26';
 const SAVE_KEY = 'openworld-v2';
 
 // ---- deterministic rng --------------------------------------------
@@ -1954,6 +1964,7 @@ out geom;`;
 
   return { buildCity, prefetch, generateCity, searchPlaces, polyArea, proj, HALF,
     cachePeek: id => !!cacheGet(id || ''),
+    cacheData: id => cacheGet(id || '') || null,   // v2.26: skylines read the cached real city
     get inflight() { return _inflight.size; } };
 })();
 
@@ -2739,6 +2750,271 @@ const WORLD = (() => {
     }
   }
 
+  // ---------------- v2.26 PRE-BUILT WORLD: distant-city skylines -------
+  // Every catalog city already STANDS in the world at its real spot long
+  // before the player arrives — no walk-in, no import needed to make it
+  // EXIST. Each skyline is the city's true footprint (the real OSM data
+  // when this browser has it cached, the deterministic local generator
+  // otherwise — never a network call at build time), dry-land gated with
+  // the same rules as the full build: nothing stands in water, asphalt
+  // pulls back from the shoreline. Walking into a city (or arriving by
+  // search / world map) still upgrades that spot to the fully detailed
+  // city — plots, props, citizens — and leaving hands the horizon back to
+  // the skyline, so the world never empties behind you. Not the old
+  // v2.16 fake backdrop ring: these are the real 64 cities at their true
+  // coordinates, consistent with what you walk into.
+  let skyRoot = null;               // one group holding every skyline
+  const skyBuilt = new Map();       // cityKey -> group
+  let skyQueue = [];                // catalog cities not standing yet
+  let skyLastT = 0;                 // throttle: one build per gate window
+  let _skyMat = null;
+  const SKY_GATE = isMob ? 110 : 45;    // ms between skyline builds
+
+  function skyEnsure() {
+    if (skyRoot) return;
+    _skyMat = new THREE.MeshLambertMaterial({ vertexColors: true, fog: false, side: THREE.DoubleSide });
+    skyRoot = new THREE.Group();
+    group.add(skyRoot);
+    skyQueue = CITIES.slice();
+  }
+  function skyHide(key) { const g = skyBuilt.get(key); if (g) g.visible = false; }
+  function skyShow(key) { const g = skyBuilt.get(key); if (g) g.visible = true; }
+
+  function skyTick(px, pz, now) {
+    if (!skyQueue.length || now - skyLastT < SKY_GATE) return;
+    // nearest city first — the world fills in around you as you play
+    let bi = 0, bd = Infinity;
+    for (let i = 0; i < skyQueue.length; i++) {
+      const c = skyQueue[i];
+      const d = (px - c.wx) * (px - c.wx) + (pz - c.wz) * (pz - c.wz);
+      if (d < bd) { bd = d; bi = i; }
+    }
+    const c = skyQueue.splice(bi, 1)[0];
+    skyLastT = now;
+    buildSkyline(c);   // even for the ACTIVE city: hidden while its full
+                       // city stands, ready on the horizon when you leave
+  }
+
+  function buildSkyline(c, force) {
+    const old = skyBuilt.get(c.key);
+    if (old && !force) return;
+    if (old) disposeSkyGroup(old);
+    if (!skyRoot) return;
+    const meta = { key: c.key, name: c.name, lat: c.lat, lon: c.lon, tier: c.tier };
+    let dsrc = 'osm';
+    let data = null;
+    try { data = OSM.cacheData(c.key); } catch (e) { }
+    if (!data || !Array.isArray(data.roads) || !data.roads.length) { data = OSM.generateCity(meta); dsrc = 'gen'; }
+    const ax = c.wx, az = c.wz;
+    const shift = pts => pts.map(p => [p[0] + ax, p[1] + az]);
+    let roads = (data.roads || []).map(r => ({ ...r, pts: shift(r.pts) }));
+    let buildings = (data.buildings || []).map(b => ({ ...b, poly: shift(b.poly) }));
+    let greens = (data.greens || []).map(g => ({ ...g, poly: shift(g.poly) }));
+    // ---- v2.20 DRY LAND, skyline edition: the same rule as the full
+    // city build — nothing in the water, streets pull back from the
+    // shoreline (compact variant: 24 m densification, ~60 m decimation)
+    if (LANDGEO.ready) {
+      const wet = (x, z) => LANDGEO.isWaterWorld(x, z);
+      const densify = (pts, step) => {
+        if (pts.length < 2) return pts.slice();
+        const out = [pts[0]];
+        for (let i = 1; i < pts.length; i++) {
+          const a = pts[i - 1], b = pts[i];
+          const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+          const n = Math.min(240, Math.floor(L / step));
+          for (let k = 1; k <= n; k++) {
+            const t = k / (n + 1);
+            out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+          }
+          out.push(b);
+        }
+        return out;
+      };
+      const shorePt = (p, q) => {
+        let a = p, b = q, wa = wet(p[0], p[1]);
+        for (let k = 0; k < 8; k++) {
+          const m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+          if (wet(m[0], m[1]) === wa) a = m; else b = m;
+        }
+        return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      };
+      const pulled = (shore, interior, w) => {
+        const dx = interior[0] - shore[0], dz = interior[1] - shore[1];
+        const L = Math.hypot(dx, dz) || 1;
+        const m = Math.min(w / 2 + 2.5, L * .45);
+        return [shore[0] + dx / L * m, shore[1] + dz / L * m];
+      };
+      const kept = [];
+      for (const r of roads) {
+        const dp = densify(r.pts, 24);
+        const runs = [];
+        let run = null;
+        for (let i = 0; i < dp.length; i++) {
+          if (!wet(dp[i][0], dp[i][1])) {
+            if (!run) { run = { i0: i, pts: [] }; runs.push(run); }
+            run.pts.push(dp[i]);
+          } else run = null;
+        }
+        for (const seg of runs) {
+          const out = seg.pts.slice();
+          if (seg.i0 > 0) out.unshift(pulled(shorePt(dp[seg.i0 - 1], dp[seg.i0]), seg.pts[0], r.w));
+          const iEnd = seg.i0 + seg.pts.length - 1;
+          if (iEnd < dp.length - 1) out.push(pulled(shorePt(dp[iEnd], dp[iEnd + 1]), seg.pts[seg.pts.length - 1], r.w));
+          if (out.length >= 2) {
+            const dec = [out[0]];
+            let acc = 0;
+            for (let k = 1; k < out.length - 1; k++) {
+              acc += Math.hypot(out[k][0] - dec[dec.length - 1][0], out[k][1] - dec[dec.length - 1][1]);
+              if (acc >= 60) { dec.push(out[k]); acc = 0; }
+            }
+            dec.push(out[out.length - 1]);
+            kept.push({ ...r, pts: dec });
+          }
+        }
+      }
+      roads = kept;
+      const solid = poly => {
+        let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9, cx = 0, cz = 0;
+        for (const p of poly) {
+          x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]);
+          z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]);
+          cx += p[0]; cz += p[1];
+        }
+        cx /= poly.length; cz /= poly.length;
+        const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+        return !wet(x0, z0) && !wet(x1, z0) && !wet(x1, z1) && !wet(x0, z1) &&
+          !wet(mx, z0) && !wet(x1, mz) && !wet(mx, z1) && !wet(x0, mz) && !wet(cx, cz);
+      };
+      const polyDry = poly => {
+        for (const p of poly) if (wet(p[0], p[1])) return false;
+        return true;
+      };
+      buildings = buildings.filter(b => b.poly && b.poly.length >= 3 && solid(b.poly) && polyDry(b.poly));
+      greens = greens.filter(g => g.poly && g.poly.length >= 3 && solid(g.poly) && polyDry(g.poly));
+    }
+    // ---- the skyline mesh: ONE vertex-colored geometry per city -------
+    // fog:false (like the city beacons) so a distant city reads through
+    // the haze from any altitude; buildings keep their true footprints
+    // and heights — downtown towers included.
+    const P = [], N = [], C = [];
+    // flat up-facing triangle (plates, roads, parks, roofs)
+    const tri = (a, b, c2, y, cc) => {
+      for (const p of [a, b, c2]) { P.push(p[0], y, p[1]); N.push(0, 1, 0); C.push(cc[0], cc[1], cc[2]); }
+    };
+    const jit = (c2, f) => [c2[0] * f, c2[1] * f, c2[2] * f];
+    const BASES = [0xbdb6a8, 0xa9a196, 0x9ba4ac, 0xc4b8a2, 0x8f939a, 0xb3a58f];
+    // ground plate: dry tiles only, a hair above the land shield
+    const cPlate = col(0x8d887e);
+    {
+      const size = 1490, NT = 12, T = size / NT;
+      for (let i = 0; i < NT; i++) for (let j = 0; j < NT; j++) {
+        const x0 = ax - size / 2 + i * T, z0 = az - size / 2 + j * T;
+        const x1 = x0 + T, z1 = z0 + T;
+        if (LANDGEO.ready && (LANDGEO.isWaterWorld(x0, z0) || LANDGEO.isWaterWorld(x1, z0) ||
+          LANDGEO.isWaterWorld(x0, z1) || LANDGEO.isWaterWorld(x1, z1) ||
+          LANDGEO.isWaterWorld((x0 + x1) / 2, (z0 + z1) / 2))) continue;
+        const f = .96 + (hashStr(c.key + i + ',' + j) % 100) / 1000 * .09;
+        const cc = jit(cPlate, f);
+        tri([x0, z1], [x1, z1], [x1, z0], .05, cc);
+        tri([x0, z1], [x1, z0], [x0, z0], .05, cc);
+      }
+    }
+    // parks: flat green patches
+    const cGreen = col(0x4e7a44);
+    for (const g of greens) {
+      const n = g.poly.length;
+      let cx = 0, cz = 0;
+      for (const p of g.poly) { cx += p[0]; cz += p[1]; }
+      cx /= n; cz /= n;
+      const cc = jit(cGreen, .9 + (hashStr(c.key + 'g' + n) % 100) / 1000 * .25);
+      for (let i = 0; i < n; i++) {
+        tri([cx, cz], g.poly[i], g.poly[(i + 1) % n], .26, cc);
+      }
+    }
+    // streets: asphalt ribbons, true widths, pulled back from water
+    const cRoad = col(0x393c40);
+    for (const r of roads) {
+      const w = Math.min(17, Math.max(5, r.w || 9));
+      const f = .9 + (hashStr(c.key + 'r' + (r.name || '')) % 100) / 1000 * .2;
+      const cc = jit(cRoad, f);
+      for (let i = 0; i < r.pts.length - 1; i++) {
+        const [a2, a3] = r.pts[i], [b2, b3] = r.pts[i + 1];
+        const dx = b2 - a2, dz = b3 - a3, L = Math.hypot(dx, dz) || 1;
+        let sw = w;
+        if (LANDGEO.ready) {
+          // v2.26: a dry centerline can still overhang the water by half
+          // the ribbon width on shore-hugging streets — shrink the ribbon
+          // until its corners are dry too (nothing renders in the water)
+          const okW = w2 => {
+            const qx = -dz / L * w2 / 2, qz = dx / L * w2 / 2;
+            return !LANDGEO.isWaterWorld(a2 + qx, a3 + qz) && !LANDGEO.isWaterWorld(a2 - qx, a3 - qz) &&
+              !LANDGEO.isWaterWorld(b2 + qx, b3 + qz) && !LANDGEO.isWaterWorld(b2 - qx, b3 - qz);
+          };
+          if (!okW(sw)) {
+            if (okW(w / 2)) sw = w / 2;
+            else if (okW(w / 4)) sw = w / 4;
+            else if (okW(2.5)) sw = 2.5;
+            else continue;   // hugging the waterline tighter than 2.5 m — drop the sliver
+          }
+        }
+        const px = -dz / L * sw / 2, pz = dx / L * sw / 2;
+        tri([a2 + px, a3 + pz], [b2 + px, b3 + pz], [b2 - px, b3 - pz], .3, cc);
+        tri([a2 + px, a3 + pz], [b2 - px, b3 - pz], [a2 - px, a3 - pz], .3, cc);
+      }
+    }
+    // buildings: true footprints extruded to true heights
+    const cRoof = col(0x53565a);
+    for (let bi2 = 0; bi2 < buildings.length; bi2++) {
+      const b = buildings[bi2];
+      const poly = b.poly, n = poly.length;
+      if (n < 3) continue;
+      const hv = hashStr(c.key + '|' + (b.bkey !== undefined ? b.bkey : 'b' + bi2));
+      const wall = jit(col(BASES[hv % BASES.length]), .9 + Math.floor(hv / 7) % 100 / 1000 * .18);
+      const roof = jit(cRoof, .9 + hv % 100 / 1000 * .2);
+      let h = isFinite(b.h) ? b.h : 8 + hv % 100 / 100 * 26;
+      h = Math.min(120, Math.max(4, h));
+      const y0 = .3, y1 = y0 + h;
+      let cx = 0, cz = 0;
+      for (const p of poly) { cx += p[0]; cz += p[1]; }
+      cx /= n; cz /= n;
+      for (let i = 0; i < n; i++) {
+        const p1 = poly[i], p2 = poly[(i + 1) % n];
+        // wall quad (two tris sharing the p1-bottom → p2-top diagonal),
+        // horizontal edge normal — DoubleSide keeps the winding safe for
+        // either footprint orientation
+        const ex = p2[0] - p1[0], ez = p2[1] - p1[1];
+        const el = Math.hypot(ex, ez) || 1;
+        const nx = ez / el, nz = -ex / el;
+        const vb = [wall[0], wall[1], wall[2]], vt = [wall[0] * .94, wall[1] * .94, wall[2] * .94];
+        const vTri = (pA, yA, cA, pB, yB, cB, pC2, yC2, cC2) => {
+          P.push(pA[0], yA, pA[1]); N.push(nx, 0, nz); C.push(cA[0], cA[1], cA[2]);
+          P.push(pB[0], yB, pB[1]); N.push(nx, 0, nz); C.push(cB[0], cB[1], cB[2]);
+          P.push(pC2[0], yC2, pC2[1]); N.push(nx, 0, nz); C.push(cC2[0], cC2[1], cC2[2]);
+        };
+        vTri(p1, y0, vb, p2, y0, vb, p2, y1, vt);
+        vTri(p1, y0, vb, p2, y1, vt, p1, y1, vt);
+        // roof fan
+        tri([cx, cz], poly[i], poly[(i + 1) % n], y1, roof);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
+    const mesh = new THREE.Mesh(geo, _skyMat);
+    const g = new THREE.Group();
+    g.add(mesh);
+    g.userData.skySrc = dsrc;
+    skyRoot.add(g);
+    skyBuilt.set(c.key, g);
+    if (activeCity && activeCity.key === c.key) g.visible = false;
+  }
+
+  function disposeSkyGroup(g) {
+    g.traverse(o => { if (o.geometry) { try { o.geometry.dispose(); } catch (e) { } } });
+    if (g.parent) g.parent.remove(g);
+  }
+
   // ---------------- city chunk streaming ------------------------------
   async function setCity(data, meta, onStatus) {
     clearCity();
@@ -2756,6 +3032,14 @@ const WORLD = (() => {
     curRegion = meta.key;
     const mk = markers.get(meta.key);
     if (mk) mk.group.visible = false;
+    skyHide(meta.key);     // v2.26: the full city replaces the skyline
+    // v2.26: arriving with REAL map data upgrades that city's skyline
+    // from the generator look to the true footprint — so the horizon
+    // stays accurate after you leave (runs behind the travel veil)
+    if (c && data && data.source === 'osm' && !data.pasture) {
+      const sg = skyBuilt.get(meta.key);
+      if (!sg || sg.userData.skySrc !== 'osm') buildSkyline(c, true);
+    }
     return anchor;
   }
   function clearCity() {
@@ -2764,6 +3048,7 @@ const WORLD = (() => {
     CITY.dispose();
     const mk = markers.get(activeCity.key);
     if (mk) mk.group.visible = true;
+    skyShow(activeCity.key);   // v2.26: the skyline stands back up as you leave
     const was = activeCity;
     activeCity = null;
     curRegion = 'rural';
@@ -2775,6 +3060,7 @@ const WORLD = (() => {
     if (!inited) return null;
     const now = performance.now();
     let req = null;
+    skyTick(px, pz, now);   // v2.26: pre-build the world's cities, nearest first
 
     if (now - lastChunkUpd > 400) {
       lastChunkUpd = now;
@@ -2934,6 +3220,7 @@ const WORLD = (() => {
     buildGround();
     buildEdges();
     buildMarkers();
+    skyEnsure();          // v2.26: the pre-built world starts filling in
     inited = true;
   }
 
@@ -2942,6 +3229,7 @@ const WORLD = (() => {
     chunkQueue = [];
     if (group && group.parent) group.parent.remove(group);
     group = null; inited = false; edges = []; markers = new Map();
+    skyRoot = null; skyBuilt.clear(); skyQueue = CITIES.slice();   // v2.26
   }
 
   // ---------------- v2.23: road routing for long walks -----------------
@@ -3015,6 +3303,14 @@ const WORLD = (() => {
     ensure, update, setCity, clearCity, disposeAll, routeTo,
     plotAt, plots, randomRoadPoint, nearestRoadInfo, clampToBounds,
     nearestCityInfo, mapData, nearRoad,
+    skyStats: () => ({ built: skyBuilt.size, queue: skyQueue.length,
+      standing: [...skyBuilt.values()].filter(g => g.visible).length }),
+    skyAt: key => {
+      const g = skyBuilt.get(key);
+      if (!g) return null;
+      const m = g.children[0];
+      return { visible: g.visible, tris: m && m.geometry ? m.geometry.attributes.position.count / 3 : 0 };
+    },
     set pending(v) { pendingCity = v; },
     get pending() { return pendingCity; },
     get activeCity() { return activeCity; },
@@ -7511,7 +7807,7 @@ document.querySelectorAll('#boot .foot a').forEach(a => {
   a.onclick = e => {
     e.preventDefault();
     const k = a.dataset.abt;
-    openModal(k.toUpperCase(), `<p><b>Open World v2.25</b> runs entirely in your browser and saves locally.</p>
+    openModal(k.toUpperCase(), `<p><b>Open World v2.26</b> runs entirely in your browser and saves locally.</p>
       <p>No accounts, no tracking, no payments. Map data © OpenStreetMap contributors (ODbL).</p>
       <p>Support: keep playing and build something big.</p>`);
   };
@@ -7566,12 +7862,12 @@ function checkForUpdate() {
 function openWhatsNew() {
   STATE.seenNews = GAME_VERSION;
   saveGame();
-  openModal('Welcome to v2.25 — THE LONG WALK', `
-    <p><b>Cross-city walks work now — and the gold pill tells the truth.</b></p>
-    <div class="kv"><span class="k">WALKS THAT MAKE IT</span><span class="v g">Setting out from downtown used to die silently against the first building block — your tycoon now leaves town along the streets themselves and keeps to the road the whole way</span></div>
-    <div class="kv"><span class="k">AN HONEST GOLD PILL</span><span class="v">"WALK TO TORONTO · 4.7 KM" is your TYCOON'S distance, never the camera's — pan the view ahead and the pill says how far away your tycoon really is (C snaps back)</span></div>
-    <div class="kv"><span class="k">NO SILENT FAILURES</span><span class="v">A stalled walk tells you it stalled; a blocked travel says so instead of quietly doing nothing</span></div>
-    <div class="kv"><span class="k">STILL THE SAME WORLD</span><span class="v">Instant travel: search any city, or click it on the world map [M] — enter Chicago, then Toronto is one click away</span></div>
+  openModal('Welcome to v2.26 — THE WHOLE WORLD', `
+    <p><b>Every city already stands in the world before you get there.</b></p>
+    <div class="kv"><span class="k">THE WORLD COMES PRE-BUILT</span><span class="v g">All 64 cities exist from the moment you enter — roads, towers and parks at their real spots on Earth. Pan the view or zoom out: the horizon is full of cities, not empty markers</span></div>
+    <div class="kv"><span class="k">NO WALK REQUIRED</span><span class="v">A city no longer waits for your tycoon to arrive before it "imports" — it was already there. Walk in and it gains its full detail: real OpenStreetMap streets, vendor plots, crowds</span></div>
+    <div class="kv"><span class="k">THE WORLD NEVER EMPTIES</span><span class="v">Leave a city and its skyline stays on the horizon behind you</span></div>
+    <div class="kv"><span class="k">STILL INSTANT</span><span class="v">Search any city, or click it on the world map [M] — one tap and you are there</span></div>
     <div style="display:flex;gap:8px;margin-top:16px"><button class="btn primary" id="wn-x" style="flex:1">EXPLORE</button></div>`);
   document.getElementById('wn-x').onclick = () => { closeModal(); setTimeout(autoEnterLast, 250); };
 }
@@ -7618,13 +7914,14 @@ document.getElementById('bb-next').addEventListener('click', () => {
 });
 
 function openHelp() {
-  openModal('Open World v2.25 — Help', `
+  openModal('Open World v2.26 — Help', `
     <p><b>Controls</b></p>
     <div class="kv"><span class="k">MOVE</span><span class="v g">Tap / click anywhere — your tycoon walks there (the only way they move)</span></div>
     <div class="kv"><span class="k">LOOK AROUND</span><span class="v">Drag or WASD / arrows / joystick to glide the bird\u2019s-eye view across the map</span></div>
     <div class="kv"><span class="k">ROTATE</span><span class="v">Right-drag (or Ctrl+drag) · touch: pinch zoom</span></div>
     <div class="kv"><span class="k">ZOOM</span><span class="v">Wheel / pinch (gentle, glide)</span></div>
     <div class="kv"><span class="k">FIND ME</span><span class="v">[C] or the crosshair button → snap back to your tycoon</span></div>
+    <div class="kv"><span class="k">THE HORIZON</span><span class="v">Every city already stands in the world — distant skylines are the real footprints; walk in and they gain full detail</span></div>
     <div class="kv"><span class="k">WALK TO A CITY</span><span class="v g">The gold pill above the bottom bar walks you to the nearest city — road-routed around lakes and seas, bridges included</span></div>
     <div class="kv"><span class="k">WORLD MAP</span><span class="v">minimap (bottom right) · [M] or click it for the big map</span></div>
     <div class="kv"><span class="k">THE EARTH</span><span class="v">the real planet — walk country roads between cities (the WALK-TO pill routes you around water), cross straits by sea bridge, or fly anywhere from orbit</span></div>
@@ -8113,7 +8410,7 @@ EARTH.diveTo = (city, cb) => {
 };
 
 
-console.log('%cOPEN WORLD v2.25 — THE LONG WALK', 'color:#38BDF8;font-weight:700', 'ready.');
+console.log('%cOPEN WORLD v2.26 — THE WHOLE WORLD', 'color:#38BDF8;font-weight:700', 'ready.');
 
 </script>
 </body>
