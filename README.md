@@ -1,8 +1,8 @@
 # Open World
 
-A single-player, in-browser tycoon game set on the real Earth. Current version: **v2.25** ("The Long Walk").
+A single-player, in-browser tycoon game set on the real Earth. Current version: **v2.26** ("The Whole World").
 
-Search for any real city and the game builds it from OpenStreetMap data: real streets, buildings, greens and plots, all standing on dry land. Then build your business empire there. Every city is reachable on foot.
+Search for any real city and the game builds it from OpenStreetMap data: real streets, buildings, greens and plots, all standing on dry land. Then build your business empire there. Since v2.26 the world comes pre-built: every one of the 64 catalog cities already stands at its real spot before you ever walk there — walk in and it upgrades to the fully detailed city.
 
 ## Play
 
@@ -43,6 +43,7 @@ The loop, as described by the in-game starter guide:
 - Static HTML and JavaScript. The whole game is `openworld.html` (about 8,000 lines), with `index.html` as the landing page.
 - 3D with three.js 0.160, loaded from unpkg.
 - Live calls to OpenStreetMap Overpass (map data) and Nominatim (city search); if Overpass is unreachable, a built-in generator lays out the city instead. Map data is (c) OpenStreetMap contributors (ODbL).
+- The world is pre-built (v2.26): all 64 cities stand in the world from the moment you enter — distant skylines use the city's true footprint (cached real map data when available, the local generator otherwise, no boot-time network calls) and are upgraded to full detail when you arrive.
 - On boot the game reads same-origin `version.json` and offers the one-tap self-update described above.
 - No accounts. Your world is saved in your browser's localStorage under the key `openworld-v2`, so it stays on that browser and device.
 
