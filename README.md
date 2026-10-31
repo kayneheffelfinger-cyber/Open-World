@@ -1,6 +1,6 @@
 # Open World
 
-A single-player, in-browser tycoon game set on the real Earth. Current version: **v2.24** ("Fresh Build").
+A single-player, in-browser tycoon game set on the real Earth. Current version: **v2.25** ("The Long Walk").
 
 Search for any real city and the game builds it from OpenStreetMap data: real streets, buildings, greens and plots, all standing on dry land. Then build your business empire there. Every city is reachable on foot.
 
@@ -35,7 +35,7 @@ The loop, as described by the in-game starter guide:
 | Snap back to your tycoon | `C` or the crosshair button |
 | Serve customers | `E` while standing at your cart |
 | World map | `M` or click the minimap |
-| Walk to the nearest city | The gold pill above the bottom bar (routes around water, uses bridges) |
+| Walk to the nearest city | The gold pill above the bottom bar (routes around water, uses bridges) — the distance shown is always your tycoon's, and it flags when the view is panned far away from them |
 | Help and starter guide | In-game Help — the starter guide can be replayed anytime |
 
 ## Under the hood
